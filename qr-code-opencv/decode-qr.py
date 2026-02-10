@@ -24,6 +24,6 @@ secret = ""
 text_to_check = "ztmail:outgoing:1454585:43601135d7866cacecb0ba28d69c119e"
 
 if verify_md5_checksum(text_to_check, secret):
-    print("Контрольная сумма верна ✅")
+    print("Контрольная сумма верна ")
 else:
-    print("Контрольная сумма НЕ совпадает ❌")
+    print("Контрольная сумма НЕ совпадает ")

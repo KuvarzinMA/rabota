@@ -3,17 +3,12 @@ import fitz
 import cv2
 import numpy as np
 
-import time
 
-from timewrap import timewrap
-
-start_time = time.time()
-
-PDF_PATH = "чувилин-письмо-100-scaled.pdf"
+PDF_PATH = "qr_pymupdf.pdf"
 
 secret = "secret"
 
-# зона интереса (левый верхний угол)
+# зона интереса (левый верхний угол)ф
 ZONE_X = 0.3
 ZONE_Y = 0.3
 
@@ -70,7 +65,8 @@ def process_detected_qr(infos, points, w, h, page_index):
             continue
         x = min(p[0] for p in bbox)
         y = min(p[1] for p in bbox)
-        if x > w * ZONE_X and y < h * ZONE_Y:
+        #Определение в каком месте qr-code-opencv
+        if x < w * ZONE_X and y < h * ZONE_Y:
             print(f"Страница {page_index}: {data}")
 
             #Проверка на правильность контрольной суммы
@@ -110,30 +106,22 @@ except Exception as e:
     print(f"Ошибка при открытии PDF: {e}")
     exit(1)
 
-@timewrap
-def process_pdf(pdf_path):
-    try:
-        doc = fitz.open(pdf_path)
-    except Exception as e:
-        print(f"Ошибка при открытии PDF: {e}")
-        return
-
-
 detector = cv2.QRCodeDetector()
 
-# быстрый и полный проход
-passes = [(2.0, 0.45), (3.5, 1.0)]
+# список проходов: (zoom, высота клипа в процентах)
+passes = [
+    (FAST_ZOOM, 0.45),
+    (FULL_ZOOM, 1.0)
+]
 
 for page_index, page in enumerate(doc, start=1):
-    page_start = time.time()  # таймер для страницы
     found = False
 
     for zoom, clip_ratio in passes:
-        pass_start = time.time()  # таймер для прохода
         mat = fitz.Matrix(zoom, zoom)
         clip = None
         if clip_ratio < 1.0:
-            clip = fitz.Rect(0, 0, page.rect.width, page.rect.height * clip_ratio)
+            clip = fitz.Rect(0, 0, page.rect.width * clip_ratio, page.rect.height * clip_ratio)
 
         pix = page.get_pixmap(matrix=mat, clip=clip)
         img = pixmap_to_bgr(pix)
@@ -143,17 +131,10 @@ for page_index, page in enumerate(doc, start=1):
         if process_detected_qr(infos, points, w, h, page_index):
             found = True
 
+        # очистка памяти
         pix = None
         del img
-
-        pass_end = time.time()
-        print(f"Страница {page_index}, проход zoom={zoom}: {pass_end - pass_start:.3f} сек")
 
         if found:
             break
 
-    page_end = time.time()
-    print(f"Страница {page_index} обработана за {page_end - page_start:.3f} сек")
-end_time = time.time()  # конец таймера
-elapsed = end_time - start_time
-print(f"Время выполнения: {elapsed:.2f} секунд")

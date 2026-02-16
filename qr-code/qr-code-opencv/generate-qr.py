@@ -63,7 +63,7 @@ text_for_qr = f"{txt}-{checksum}"
 # Генерация PDF с QR-кодом в правом верхнем углу
 generate_qr_pdf(
     text=text_for_qr,
-    output_pdf="qr_pymupdf.pdf",
+    output_pdf="_pymupdf.pdf",
     pos_x=0,  # левый верхний угол
     pos_y=0,
     qr_width=200,

@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-PDF_PATH = "qr_pymupdf.pdf"
+PDF_PATH = "../scan_20260212104232.pdf"
 
 secret = "secret"
 

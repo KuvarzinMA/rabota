@@ -8,7 +8,7 @@ import time
 
 start_time = time.time()
 
-PDF_PATH = "qr-code.pdf"
+PDF_PATH = "scan_20260212104232.pdf"
 secret = "secret"
 
 # ROI — левый верхний угол
@@ -119,7 +119,7 @@ def scan_pdf(pdf_path):
         if fast_results:
             all_results.extend(fast_results)
             continue  # QR найден — fallback не нужен
-
+        print("Fallback")
         # FALLBACK
         fallback_results = fallback_opencv_scan(page, page_index, detector)
 

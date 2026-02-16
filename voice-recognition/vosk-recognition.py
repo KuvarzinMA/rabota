@@ -13,7 +13,7 @@ FILE_PATH = "5.mp3"
 MODEL_PATH = r"C:\Users\Mishker\.cache\vosk\vosk-model-small-ru-0.22"
 STOP_WORD = "барбоскины"
 SAMPLE_RATE = 16000
-CHUNK_SIZE = 32000\
+CHUNK_SIZE = 32000
 
 # =========================
 # ИНИЦИАЛИЗАЦИЯ

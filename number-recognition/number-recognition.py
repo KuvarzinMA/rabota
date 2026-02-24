@@ -1,83 +1,152 @@
-import fitz  # PyMuPDF
 import cv2
 import numpy as np
-import easyocr
-import re
-import warnings
-
-warnings.filterwarnings("ignore", category=UserWarning)
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import os
 
 
-def preprocess_handwriting_with_lines(pix):
-    img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if pix.n == 3 else cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (50, 1))
-    detected_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
-    cnts = cv2.findContours(detected_lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
-    for c in cnts:
-        cv2.drawContours(binary, [c], -1, (0, 0, 0), 2)
-    processed = cv2.bitwise_not(binary)
-    processed = cv2.GaussianBlur(processed, (3, 3), 0)
-    return processed
+def cv2_imshow(image):
+    """Альтернатива cv2_imshow из Colab для локального использования"""
+    # Конвертация BGR в RGB (так как OpenCV использует BGR, а matplotlib - RGB)
+    if len(image.shape) == 3 and image.shape[2] == 3:
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        plt.imshow(image_rgb)
+    else:
+        # Для черно-белых изображений
+        plt.imshow(image, cmap='gray')
+    plt.axis('off')
+    plt.show()
 
 
-def fix_ocr_errors(text):
-    """Исправляет типичные ошибки EasyOCR в телефонных номерах."""
-    # Кириллица/латиница которую путают с цифрами
-    replacements = {
-        'о': '0', 'О': '0', 'o': '0', 'O': '0',  # буква о -> ноль
-        'l': '1', 'I': '1', 'i': '1',              # L/I -> единица
-        'з': '3', 'З': '3',                          # з -> тройка
-        'б': '6',                                    # б -> шестёрка
-        'q': '9', 'g': '9',                          # q/g -> девятка
-    }
-    for wrong, right in replacements.items():
-        text = text.replace(wrong, right)
-    return text
+def run_recognition(image_path, model_path='postal_model.h5'):
+    # 1. Загрузка модели
+    if not os.path.exists(model_path):
+        print(f"Модель {model_path} не найдена!")
+        return
+
+    model = tf.keras.models.load_model(model_path)
+
+    # 2. Загружаем фото
+    img = cv2.imread(image_path)
+    if img is None:
+        print("Файл не найден")
+        return
+
+    # 3. Принудительно отрезаем "шапку" (верхние 25% изображения)
+    h_orig, w_orig = img.shape[:2]
+    crop_top = int(h_orig * 0.25)
+    img_cropped = img[crop_top:, :]
+
+    # Сохраняем копию cropped изображения для отрисовки результата
+    result_img = img_cropped.copy()
+    gray = cv2.cvtColor(img_cropped, cv2.COLOR_BGR2GRAY)
+
+    # 4. Улучшенная предобработка (Гауссово размытие + Пороговая обработка Оцу + Морфологические операции)
+
+    # Применяем Гауссово размытие для уменьшения шума перед пороговой обработкой
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # Ядро 5x5, сигма 0
+    print("Изображение после Гауссова размытия (blurred):")
+    cv2_imshow(blurred)
+
+    # Пороговая обработка Оцу: автоматически находит оптимальный порог
+    # THRESH_BINARY_INV: чтобы цифры были белыми на черном фоне
+    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    print("Изображение после пороговой обработки Оцу (thresh):")
+    cv2_imshow(thresh)
+
+    # # Убираем пунктир и шум (MORPH_OPEN)
+    # kernel = np.ones((3, 3), np.uint8)
+    # clean = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    # print("Изображение после MORPH_OPEN (clean):")
+    # cv2_imshow(clean)
+
+    # --- Скелетизацию все еще не используем, так как обучающая выборка без нее ---
+    # process_img = clean
+    # --------------------------------------------------------------------------
+
+    process_img = thresh  # Используем clean для поиска контуров.
+
+    # 5. Сегментация (поиск цифр)
+    contours, _ = cv2.findContours(process_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    rects = []
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        # Отфильтровываем мелкий мусор и слишком большие объекты
+        # Расширим диапазон размеров, чтобы не пропустить цифры, но отсечь явный мусор.
+        # Аспектное соотношение 0.1 до 10.0 это очень широкий диапазон
+        aspect_ratio = w / float(h)
+        if 10 < h < 150 and 5 < w < 150 and 0.1 < aspect_ratio < 10.0:
+            rects.append((x, y, w, h))
+
+    # Сортируем контуры слева направо
+    rects = sorted(rects, key=lambda r: r[0])
+
+    full_index = ""
+    print(f"Найдено объектов: {len(rects)}")
+    if len(rects) != 11:
+        print(
+            f"ВНИМАНИЕ: Найдено {len(rects)} объектов, ожидалось 11. Возможно, есть ошибки сегментации. Покажу найденные объекты:")
+        # Для отладки, если количество объектов не 10, покажем, что было найдено.
+        for (x, y, w, h) in rects:
+            cv2.rectangle(result_img, (x, y), (x + w, y + h), (0, 0, 255), 2)  # Красные рамки для некорректных
+        cv2_imshow(result_img)
+        return
+
+    # 6. Распознавание каждой ячейки
+    for i, (x, y, w, h) in enumerate(rects):
+        # Вырезаем область цифры
+        roi = process_img[y:y + h, x:x + w]
+
+        # Центрирование цифры в квадрате 32x32 (как в датасете)
+        final_roi = np.zeros((32, 32), dtype="uint8")
+        scale = 20.0 / max(w, h)
+        new_w, new_h = int(w * scale), int(h * scale)
+        if new_w > 0 and new_h > 0:
+            # Размещаем цифру в центре 32x32 изображения
+            roi_res = cv2.resize(roi, (new_w, new_h))
+            offset_x = (32 - new_w) // 2
+            offset_y = (32 - new_h) // 2
+            final_roi[offset_y:offset_y + new_h, offset_x:offset_x + new_w] = roi_res
+
+        # Показываем, что видит модель для каждого ROI (для отладки)
+        print(f"ROI {i + 1} перед предсказанием:")
+        cv2_imshow(final_roi)
+
+        # Нормализация для CNN
+        roi_input = final_roi.astype("float32") / 255.0
+        roi_input = np.expand_dims(roi_input, axis=-1)  # Превращаем в (32, 32, 1)
+        roi_input = np.expand_dims(roi_input, axis=0)  # Добавляем размер батча (1, 32, 32, 1)
+
+        # Предсказание
+        prediction = model.predict(roi_input, verbose=0)
+        digit = np.argmax(prediction)
+        full_index += str(digit)
+
+        # Рисуем рамку и число над ней на итоговом фото
+        cv2.rectangle(result_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(result_img, str(digit), (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+    # 7. Вывод результата
+    print("-" * 30)
+    print(f"РАСПОЗНАННЫЙ ТЕКСТ: {full_index}")
+    print("-" * 30)
+    cv2_imshow(result_img)
 
 
-def normalize(raw):
-    """Приводит номер к формату +7XXXXXXXXXX."""
-    raw = raw.replace(".", "-")
-    raw = fix_ocr_errors(raw)
-    digits = re.sub(r"\D", "", raw)
-    if len(digits) != 11:
-        return None
-    if digits.startswith("8"):
-        digits = "7" + digits[1:]
-    return f"+{digits}"
-
-
-def run_ocr(pdf_path):
-    reader = easyocr.Reader(['ru', 'en'], gpu=False)
-    doc = fitz.open(pdf_path)
-    found_phones = set()
-
-    phone_regex = r'(?:\+7|8)[\s\.\-\(]*\d{3}[\s\.\-\)]*\d{3}[\s\.\-]*\d{2}[\s\.\-]*\d{2}'
-
-    for page_index in range(len(doc)):
-        page = doc.load_page(page_index)
-        pix = page.get_pixmap(matrix=fitz.Matrix(2.5, 2.5))
-        clean_img = preprocess_handwriting_with_lines(pix)
-        results = reader.readtext(clean_img, detail=0, paragraph=True, contrast_ths=0.1)
-        text_block = " ".join(results)
-
-        # Исправляем ошибки OCR ДО применения регулярки
-        text_fixed = fix_ocr_errors(text_block)
-
-        for raw in re.findall(phone_regex, text_fixed):
-            phone = normalize(raw)
-            if phone:
-                found_phones.add(phone)
-
-    return sorted(found_phones)
-
-
+# --- ЗАПУСК ---
 if __name__ == "__main__":
-    path = "png2pdf.pdf"  # Твой файл
-    print("Начинаю локальное распознавание...")
-    results = run_ocr(path)
-    print("\nНайденные номера:", results if results else "Ничего не найдено")
+    # Просто замени название файла на свой
+    image_file = 'numbers/img.png'
+
+    # Проверяем существует ли файл
+    if os.path.exists(image_file):
+        run_recognition(image_file)
+    else:
+        print(f"Файл {image_file} не найден в текущей директории!")
+        print(f"Текущая директория: {os.getcwd()}")
+        print("Доступные файлы:")
+        for file in os.listdir('.'):
+            if file.endswith(('.png', '.jpg', '.jpeg')):
+                print(f"  - {file}")

@@ -47,7 +47,7 @@ def pixmap_to_bgr(pix):
 
 
 def process_file(pdf_bytes):
-    """Твоя логика распознавания"""
+    """Логика распознавания"""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     detector = cv2.QRCodeDetector()
     results = []

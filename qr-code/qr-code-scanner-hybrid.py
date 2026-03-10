@@ -8,7 +8,7 @@ import time
 
 start_time = time.time()
 
-PDF_PATH = "scan_20260212104232.pdf"
+PDF_PATH = "../scan_20260212104232.pdf"
 secret = "secret"
 
 # ROI — левый верхний угол

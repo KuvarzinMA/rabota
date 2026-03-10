@@ -47,7 +47,7 @@ def run_recognition(pdf_path, model_path='postal_model.h5'):
     gray_full = cv2.warpAffine(gray_full, M, (w_f, h_f), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
     # 2. Обрезка ROI (твои коэффициенты)
-    roi_h_limit = int(h_f * 0.15)
+    roi_h_limit = int(h_f * 0.25)
     roi_w_limit = int(w_f * 0.55)
     roi_gray = gray_full[0:roi_h_limit, 0:roi_w_limit]
 
@@ -95,7 +95,7 @@ def run_recognition(pdf_path, model_path='postal_model.h5'):
     extracted_rois = []
     full_index = ""
     for (x, y, w, h) in rects[:11]:
-        p = 8
+        p = 10
         roi = process_img[max(0, y - p):min(roi_gray.shape[0], y + h + p),
               max(0, x - p):min(roi_gray.shape[1], x + w + p)]
         if roi.size == 0: continue

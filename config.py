@@ -1,14 +1,14 @@
 # --- Параметры базы данных ---
 DB_CONFIG = {
-    "host": "10.2.1.50",
-    "database": "rpismo",
-    "user": "rpismo",
-    "password": "22rpismo11"
+    "host": "host",
+    "database": "db",
+    "user": "user",
+    "password": "pass"
 }
 
 # --- Параметры S3 (MinIO) ---
 S3_CONFIG = {
-    "endpoint_url": "http://10.2.1.50:9000",
+    "endpoint_url": "http://localhost",
     "aws_access_key_id": "minioadmin",
     "aws_secret_access_key": "minioadmin",
 }

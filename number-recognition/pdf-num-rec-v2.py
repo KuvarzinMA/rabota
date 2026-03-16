@@ -117,4 +117,4 @@ def run_recognition(pdf_path, model_path='postal_model.h5'):
 
 
 if __name__ == "__main__":
-    run_recognition('scan.pdf')
+    run_recognition('scan2.pdf')

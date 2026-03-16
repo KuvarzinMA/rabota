@@ -32,9 +32,9 @@ def generate_qr_image(text: str, output_image: str, size: int = 400):
 
 
 # Пример использования
-txt = "rpismo-answ-000000001"
+txt = "rpismo-wsna-000000003"
 secret = "secret"
 checksum = generate_md5_checksum(txt, secret)
 text_for_qr = f"{txt}-{checksum}"
 
-generate_qr_image(text_for_qr, "qr_image.png", size=400)
+generate_qr_image(text_for_qr, "qr_image3.png", size=400)

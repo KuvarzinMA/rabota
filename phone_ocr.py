@@ -49,7 +49,7 @@ class PhoneOCR:
         gray_full = cv2.warpAffine(gray_full, M, (w_f, h_f), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
         # 3. Обрезка ROI (твои коэффициенты)
-        roi_h_limit = int(h_f * 0.23)
+        roi_h_limit = int(h_f * 0.25)
         roi_w_limit = int(w_f * 0.55)
         roi_gray = gray_full[0:roi_h_limit, 0:roi_w_limit]
 

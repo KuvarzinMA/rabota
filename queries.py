@@ -12,6 +12,13 @@ def update_proc_status(cur, record_id, status):
         # Логируем специфический код ошибки Postgres (e.pgcode)
         raise RuntimeError(f"SQL Status Update Error: {e.pgcode}")
 
+def update_as_answer(cur, record_id, letter_id, stor_url):
+    """Привязка скана как ответа к существующему письму."""
+    cur.execute(
+        "UPDATE letters SET answer_stor_url = %s WHERE id = %s",
+        (stor_url, letter_id)
+    )
+    update_proc_status(cur, record_id, PROC_DONE)
 
 def get_file_info(cur, record_id):
     cur.execute("SELECT stor_url FROM proc_files WHERE id = %s", (record_id,))

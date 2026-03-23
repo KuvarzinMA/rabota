@@ -1,10 +1,8 @@
 import logging
-import re
 import select
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from functools import wraps
 
 import psycopg2
 from psycopg2 import pool
@@ -12,15 +10,16 @@ import boto3
 
 from config import *
 import queries
+from services import DocumentProcessor, StorageService
 from qr_service import scan_pdf_qr
 from phone_ocr import PhoneOCR
 
 # =========================================================
-# 1. ЛОГИРОВАНИЕ
+# 1. КОНФИГУРАЦИЯ И ЛОГИ
 # =========================================================
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
+    format="%(asctime)s [%(threadName)s] %(levelname)s: %(message)s",
     handlers=[
         logging.FileHandler("worker.log", encoding="utf-8"),
         logging.StreamHandler()
@@ -29,201 +28,142 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # =========================================================
-# 2. РЕГУЛЯРНЫЕ ВЫРАЖЕНИЯ И ГЛОБАЛЫ
-# =========================================================
-RE_WSNA = re.compile(r"wsna-(\d+)")
-RE_ANSW = re.compile(r"answ-(\d+)")
-
-# Сервисы
-s3 = boto3.client("s3", **S3_CONFIG)
-ocr = PhoneOCR()
-executor = ThreadPoolExecutor(max_workers=4)
-
-# =========================================================
-# 3. РАБОТА С БАЗОЙ ДАННЫХ И РЕКОННЕКТ
+# 2. ИНИЦИАЛИЗАЦИЯ СЕРВИСОВ (Dependency Injection)
 # =========================================================
 try:
-    # Используем ThreadedConnectionPool для безопасной работы в потоках
+    # Пул соединений для многопоточности
     db_pool = psycopg2.pool.ThreadedConnectionPool(1, 20, **DB_CONFIG)
-    logger.info("Пул соединений PostgreSQL инициализирован")
+    logger.info("ThreadedConnectionPool успешно запущен.")
 except Exception as e:
-    logger.critical(f"Критическая ошибка пула БД: {e}")
+    logger.critical(f"Ошибка подключения к БД: {e}")
     exit(1)
 
-
-def retry_db(retries=3, delay=2):
-    """Декоратор для повторных попыток при сбое связи с БД."""
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            for attempt in range(retries):
-                try:
-                    return func(*args, **kwargs)
-                except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                    if attempt == retries - 1: raise
-                    logger.warning(f"Сбой БД (попытка {attempt + 1}): {e}. Ждем {delay}с...")
-                    time.sleep(delay)
-            return None
-
-        return wrapper
-
-    return decorator
+# Создаем объекты сервисов один раз при старте
+s3_client = boto3.client("s3", **S3_CONFIG)
+storage = StorageService(s3_client)
+# Передаем конкретные движки распознавания в процессор
+processor = DocumentProcessor(ocr_engine=PhoneOCR(), qr_scanner=scan_pdf_qr)
+# Пул потоков для параллельной обработки
+executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="WorkerThread")
 
 
+# =========================================================
+# 3. РАБОТА С БАЗОЙ
+# =========================================================
 @contextmanager
-def get_db():
-    """Менеджер транзакций с проверкой 'живучести' соединения."""
+def get_db_session():
+    """Менеджер транзакций: берет коннект, делает коммит или откат."""
     conn = db_pool.getconn()
     try:
-        # Проверка: если соединение упало, пробуем восстановить
+        # Простая проверка на "живое" соединение
         if conn.closed != 0:
             conn = db_pool.getconn()
-
         cur = conn.cursor()
-        yield conn, cur
-        conn.commit()  # Фиксация изменений
+        yield cur
+        conn.commit()
     except Exception as e:
-        conn.rollback()  # Откат при любой ошибке
+        conn.rollback()
         raise e
     finally:
         db_pool.putconn(conn)
 
 
 # =========================================================
-# 4. ВСПОМОГАТЕЛЬНАЯ ЛОГИКА
+# 4. ЯДРО ОБРАБОТКИ
 # =========================================================
-def download_file_from_s3(key, retries=3, delay=3):
-    """Загрузка PDF с механизмом повторов."""
-    for attempt in range(retries):
-        try:
-            obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
-            return obj["Body"].read()
-        except s3.exceptions.NoSuchKey:
-            if attempt == retries - 1: raise
-            logger.warning(f"S3: Файл {key} не найден (попытка {attempt + 1})")
-            time.sleep(delay)
-    return None
-
-
-def process_qr(qr_text, record_id, stor_url, pdf_bytes, cur):
-    """Бизнес-логика разбора QR-кода."""
-    if "rpismo-wsna-" in qr_text:
-        match = RE_WSNA.search(qr_text)
-        if not match: raise ValueError("Ошибка формата wsna")
-
-        letter_id = int(match.group(1))
-        queries.update_as_answer(cur, record_id, letter_id, stor_url)
-        logger.info(f"ID {record_id}: привязан ответ к письму {letter_id}")
-
-    elif "rpismo-answ-" in qr_text:
-        match = RE_ANSW.search(qr_text)
-        if not match: raise ValueError("Ошибка формата answ")
-
-        blank_id = int(match.group(1))
-        phone = ocr.extract_phone(pdf_bytes)
-
-        if not phone:
-            queries.mark_as_error(cur, record_id, stor_url, "OCR failed (no phone)", qr_text=qr_text)
-            return
-
-        success, res = queries.create_init_letter(cur, record_id, blank_id, stor_url, phone)
-        if not success:
-            queries.mark_as_error(cur, record_id, stor_url, res, qr_text=qr_text)
-        else:
-            logger.info(f"ID {record_id}: создано письмо {res} ({phone})")
-
-    else:
-        queries.mark_as_error(cur, record_id, stor_url, f"Неизвестный QR: {qr_text}", qr_text=qr_text)
-
-
-# =========================================================
-# 5. ОБРАБОТЧИКИ ЗАДАЧ
-# =========================================================
-@retry_db()
 def handle_notification(payload):
-    """Основной поток обработки файла."""
+    """
+    Главный сценарий обработки одного файла.
+    Функция только координирует вызовы сервисов.
+    """
+    record_id = int(payload)
+    stor_url = "Unknown"
     start_time = time.perf_counter()
-    record_id, stor_url = int(payload), "Unknown"
 
     try:
-        with get_db() as (conn, cur):
+        with get_db_session() as cur:
+            # 1. Получаем метаданные (через queries)
             stor_url = queries.get_file_info(cur, record_id)
             if not stor_url:
-                logger.warning(f"ID {record_id} не найден в БД")
+                logger.warning(f"ID {record_id} не найден в таблице proc_files.")
                 return
 
-            logger.info(f">>> Старт ID {record_id}")
+            logger.info(f"==> Начало обработки ID {record_id} ({stor_url})")
 
-            pdf_bytes = download_file_from_s3(stor_url)
-            qr_results = scan_pdf_qr(pdf_bytes)
+            # 2. Скачивание (через StorageService)
+            pdf_bytes = storage.download(stor_url)
 
-            # Выбираем первый валидный результат (где r[2] == True)
-            valid_qr = next((r for r in qr_results if r[2]), None)
+            # 3. Анализ документа (через DocumentProcessor)
+            doc = processor.get_document_info(pdf_bytes)
 
-            if not valid_qr:
-                error_msg = qr_results[0][1] if qr_results else "QR не найден"
-                queries.mark_as_error(cur, record_id, stor_url, f"Ошибка QR: {error_msg}")
-                return
-
-            process_qr(valid_qr[1], record_id, stor_url, pdf_bytes, cur)
+            # 4. Сохранение результата (через queries)
+            if doc["status"] == "error":
+                queries.mark_as_error(
+                    cur, record_id, stor_url,
+                    reason=doc["reason"],
+                    qr_text=doc.get("qr_text") or doc.get("raw")
+                )
+            elif doc["type"] == "answer":
+                queries.update_as_answer(cur, record_id, doc["id"], stor_url)
+            elif doc["type"] == "init":
+                if not doc.get("phone"):
+                    queries.mark_as_error(cur, record_id, stor_url, "PHONE_NOT_FOUND", qr_text=doc["qr_text"])
+                else:
+                    success, res = queries.create_init_letter(cur, record_id, doc["id"], stor_url, doc["phone"])
+                    if not success:
+                        queries.mark_as_error(cur, record_id, stor_url, res, qr_text=doc["qr_text"])
 
         elapsed = time.perf_counter() - start_time
-        logger.info(f"<<< ID {record_id} завершен за {elapsed:.2f}s")
+        logger.info(f"<== ID {record_id} обработан за {elapsed:.2f} сек.")
 
     except Exception as e:
-        logger.error(f"Ошибка при обработке ID {record_id}: {e}")
-        # Попытка записать ошибку в БД (в отдельной транзакции)
+        logger.error(f"Критический сбой обработки ID {record_id}: {e}")
+        # Попытка записать системную ошибку в карантин
         try:
-            with get_db() as (_, cur):
-                queries.mark_as_error(cur, record_id, stor_url, f"System error: {e}")
-        except Exception:
-            logger.critical("Не удалось залогировать системную ошибку в БД!")
+            with get_db_session() as err_cur:
+                queries.mark_as_error(err_cur, record_id, stor_url, f"System Crash: {str(e)[:100]}")
+        except:
+            logger.critical("Не удалось залогировать ошибку в базу данных!")
 
 
 # =========================================================
-# 6. ЦИКЛЫ LISTEN И ПРОВЕРКИ
+# 5. ЦИКЛ ОЖИДАНИЯ И СТАРТ
 # =========================================================
-def listen_notifications():
-    """Слушатель PostgreSQL LISTEN/NOTIFY."""
+def run_listen_loop():
+    """Слушает канал уведомлений PostgreSQL."""
     conn = psycopg2.connect(**DB_CONFIG)
     conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     cursor = conn.cursor()
     cursor.execute("LISTEN new_scan;")
 
-    logger.info("Воркер активен. Ожидание уведомлений...")
+    logger.info("Воркер перешел в режим ожидания (LISTEN new_scan)...")
 
     while True:
-        # Ждем события 5 секунд, затем проверяем статус (select не дает процессу зависнуть)
+        # Ожидание события без блокировки процесса
         if select.select([conn], [], [], 5) == ([], [], []):
             continue
 
         conn.poll()
         while conn.notifies:
             notify = conn.notifies.pop(0)
+            # Отдаем задачу в пул потоков
             executor.submit(handle_notification, notify.payload)
 
 
-# =========================================================
-# 7. ТОЧКА ВХОДА
-# =========================================================
 if __name__ == "__main__":
     try:
-        # 1. Сначала обрабатываем то, что уже лежит в БД
-        with get_db() as (_, cur):
-            pending = queries.get_pending_tasks(cur)
+        # Первичная проверка очереди (на случай, если воркер лежал)
+        with get_db_session() as main_cur:
+            pending = queries.get_pending_tasks(main_cur)
             if pending:
-                logger.info(f"Обработка накопленной очереди: {len(pending)} задач")
+                logger.info(f"Найдено {len(pending)} необработанных задач. Запуск...")
                 for pid in pending:
                     executor.submit(handle_notification, pid)
 
-        # 2. Переходим в режим реального времени
-        listen_notifications()
-
+        run_listen_loop()
     except KeyboardInterrupt:
-        logger.info("Воркер остановлен вручную")
+        logger.info("Воркер остановлен пользователем.")
     finally:
-        logger.info("Завершение работы потоков...")
         executor.shutdown(wait=True)
         db_pool.closeall()
-        logger.info("Воркер успешно выключен.")
+        logger.info("Ресурсы освобождены. Работа завершена.")

@@ -1,5 +1,6 @@
 import configparser
 import os
+import logging
 
 config = configparser.ConfigParser()
 config_path = os.path.join(os.path.dirname(__file__), 'settings.ini')
@@ -41,3 +42,29 @@ STATUS_PRINTED = config.getint("statuses", "printed")
 PROC_NEW = config.getint("proc_status", "new")
 PROC_DONE = config.getint("proc_status", "done")
 PROC_ERROR = config.getint("proc_status", "error")
+
+# --- Настройки логов ---
+LOG_CONFIG = {
+    "version": 1,
+    "formatters": {
+        "standard": {"format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"},
+        "detailed": {"format": "%(asctime)s [%(threadName)s] %(levelname)s %(module)s: %(message)s"}
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "standard",
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": "worker.log",
+            "level": "DEBUG",
+            "formatter": "detailed",
+            "encoding": "utf-8"
+        },
+    },
+    "loggers": {
+        "": {"handlers": ["console", "file"], "level": "DEBUG", "propagate": True}
+    }
+}

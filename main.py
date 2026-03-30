@@ -69,7 +69,12 @@ def get_db_session():
 # 4. ОБРАБОТКА ОДНОЙ ЗАДАЧИ
 # =========================================================
 def handle_notification(payload: str) -> None:
-    record_id = int(payload)
+    try:
+        record_id = int(payload)
+    except ValueError:
+        logger.error(f"Некорректный payload в NOTIFY: {payload!r} — ожидается число.")
+        return
+
     stor_url  = "Unknown"
     start     = time.perf_counter()
 

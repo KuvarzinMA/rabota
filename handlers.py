@@ -4,6 +4,9 @@ import queries
 
 logger = logging.getLogger("worker.handlers")
 
+# Причины которые не идут в unknown_letters — только лог
+_SKIP_QUARANTINE = {"BLANK_ALREADY_USED"}
+
 
 def process_document(cur, record_id: int, stor_url: str, doc: dict) -> None:
     """
@@ -56,8 +59,12 @@ def _handle_init(cur, record_id: int, stor_url: str, doc: dict) -> None:
         cur, record_id, doc["id"], stor_url, doc["phone"]
     )
     if not success:
-        logger.error(f"ID {record_id}: не удалось создать письмо — {res}")
-        queries.mark_as_error(cur, record_id, stor_url, res,
-                              qr_text=doc.get("qr_text"))
+        if res in _SKIP_QUARANTINE:
+            logger.warning(f"ID {record_id}: {res} — пропускаем, в карантин не пишем.")
+            queries.update_proc_status(cur, record_id, queries.PROC_DONE)
+        else:
+            logger.error(f"ID {record_id}: не удалось создать письмо — {res}. Отправляем в карантин.")
+            queries.mark_as_error(cur, record_id, stor_url, res,
+                                  qr_text=doc.get("qr_text"))
     else:
         logger.info(f"ID {record_id}: создано письмо {res}.")

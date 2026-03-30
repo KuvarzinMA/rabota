@@ -15,9 +15,9 @@ def _get(section: str, key: str, data_type: Type = str) -> Union[str, int, bool]
     Универсальный забор данных из конфига с приведением типов и обработкой ошибок.
     """
     try:
-        if data_type == int:
+        if isinstance(data_type, int):
             return config.getint(section, key)
-        if data_type == bool:
+        if isinstance(data_type, bool):
             return config.getboolean(section, key)
         return config.get(section, key)
 

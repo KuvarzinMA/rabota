@@ -28,12 +28,12 @@ def scan_pdf_qr(pdf_bytes):
 
     for idx, page in enumerate(doc, start=1):
         rect = page.rect
-        # Четкая область ROI: верхний левый угол
+
         clip = fitz.Rect(
-            rect.width * (1 - ROI_RATIO),  # Начало по X (справа)
-            rect.y0,  # Начало по Y (верх)
-            rect.x1,  # Конец по X (край листа)
-            rect.y0 + rect.height * ROI_RATIO  # Конец по Y
+            rect.x0,
+            rect.y0,
+            rect.x0 + rect.width * ROI_RATIO,
+            rect.y0 + rect.height * ROI_RATIO,
         )
 
         # --- ШАГ 1: FAST PASS (PyZbar) ---

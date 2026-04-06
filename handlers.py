@@ -67,4 +67,4 @@ def _handle_init(cur, record_id: int, stor_url: str, doc: dict) -> None:
             queries.mark_as_error(cur, record_id, stor_url, res,
                                   qr_text=doc.get("qr_text"))
     else:
-        logger.info(f"ID {record_id}: создано письмо {res}.")
+        logger.info(f"ID {record_id}: создано письмо {res} с номером {doc['phone']}")

@@ -141,7 +141,7 @@ def create_blank(counter: int, secret: str,
     pdf.set_font("ArialCustom", "", 6)
     pdf.cell(0, 5, "Заполняя бланк пользователь подтверждает согласие с условиями оферты", align="R")
 
-    output_path = f"blank_{num}.pdf"
+    output_path = f"init_{num}.pdf"
     pdf.output(output_path)
     print(f"Готово: {output_path}")
 

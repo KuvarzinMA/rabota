@@ -12,10 +12,9 @@ def generate_md5_checksum(txt: str, secret: str) -> str:
 
 def create_blank(counter: int, secret: str,
                                logo_1_path="logo_1.png",
-                               logo_2_path="logo_2.png",
-):
+                               logo_2_path="logo_2.png",):
     num = f"{counter:09d}"
-    full_id = f"rpismo-answ-{num}"
+    full_id = f"rpismo-wsna-{num}"
     checksum = generate_md5_checksum(full_id, secret)
     qr_data = f"{full_id}-{checksum}"
 
@@ -94,29 +93,8 @@ def create_blank(counter: int, secret: str,
     # Смещаем блок телефона ниже, чтобы не накладывался на подпись "Получатель"
     y_phone_block = y_rec_line + 10
 
-    pdf.set_font("ArialCustom", "B", 5)
-    pdf.set_xy(x_fields, y_phone_block)
-    pdf.cell(80, -12, "МОБИЛЬНЫЙ НОМЕР ТЕЛЕФОНА ПОЛУЧАТЕЛЯ")
-
-    # Трафарет
-    if os.path.exists(stencil_path):
-        pdf.image(stencil_path, x=x_fields, y=y_phone_block - 4, w=80, h=14)
-
-    # Образец
-    x_obr = W - M - 70
-    pdf.set_xy(x_obr, y_phone_block)
-    pdf.cell(40, -12, "ОБРАЗЕЦ НАПИСАНИЯ ЦИФР МОБИЛЬНОГО ТЕЛЕФОНА", align="L")
-
-    if os.path.exists(obraz_path):
-        pdf.image(obraz_path, x=x_obr, y=y_phone_block - 4, h=14)
-
-    # Подпись под трафаретом
-    pdf.set_font("ArialCustom", "", 6)
-    pdf.set_xy(M, y_phone_block + 10)
-    pdf.cell(0, 4, "Мобильный номер заполняйте на каждом бланке. Пишите разборчиво.")
-
     # ================= РАЗДЕЛИТЕЛЬНАЯ ЛИНИЯ =================
-    Y_WRITE_START = y_phone_block + 15
+    Y_WRITE_START = y_phone_block + 8
     pdf.set_line_width(0.3)
     pdf.line(M, Y_WRITE_START, W - M, Y_WRITE_START)
 
@@ -135,7 +113,6 @@ def create_blank(counter: int, secret: str,
     pdf.set_y(-12)
     pdf.set_font("ArialCustom", "B", 6)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(100, 5, "Не забудьте указать номер телефона", align="L")
 
     pdf.set_font("ArialCustom", "", 6)
     pdf.cell(0, 5, "Заполняя бланк пользователь подтверждает согласие с условиями оферты", align="R")

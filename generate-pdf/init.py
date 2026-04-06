@@ -10,14 +10,17 @@ def generate_md5_checksum(txt: str, secret: str) -> str:
     return hashlib.md5((txt + secret).encode('utf-8')).hexdigest()
 
 
-def create_blank_fpdf(counter: int, secret: str,
-                              logo_path="logo.png"):
+def create_blank(counter: int, secret: str,
+                               logo_1_path="logo_1.png",
+                               logo_2_path="logo_2.png",
+                               stencil_path="stencil.png",
+                               obraz_path="obraz.png"):
     num = f"{counter:09d}"
-    full_id = f"rpismo-wsna-{num}"
+    full_id = f"rpismo-answ-{num}"
     checksum = generate_md5_checksum(full_id, secret)
     qr_data = f"{full_id}-{checksum}"
 
-    # --- Генерация QR-кода ---
+    # --- QR ---
     qr = qrcode.QRCode(box_size=10, border=0)
     qr.add_data(qr_data)
     qr.make(fit=True)
@@ -27,111 +30,121 @@ def create_blank_fpdf(counter: int, secret: str,
     qr_img.save(qr_rio, format="PNG")
     qr_rio.seek(0)
 
-    # --- Инициализация PDF ---
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
-
-    # 1. ЗАПРЕТ ПЕРЕНОСА СТРАНИЦЫ (чтобы всегда был 1 лист)
+    # --- PDF ---
+    pdf = FPDF("P", "mm", "A4")
     pdf.set_auto_page_break(auto=False)
-
     pdf.add_page()
 
     # Шрифты
-    font_reg = "C:/Windows/Fonts/arial.ttf"
-    font_bold = "C:/Windows/Fonts/arialbd.ttf"
-    pdf.add_font("Arial", "", font_reg)
-    pdf.add_font("Arial", "B", font_bold)
+    pdf.add_font("ArialCustom", "", "C:/Windows/Fonts/arial.ttf")
+    pdf.add_font("ArialCustom", "B", "C:/Windows/Fonts/arialbd.ttf")
 
-    M = 10  # Поля
-    y_qr = 8  # Начальная точка
-    W_PAGE = 210
+    M = 9
+    W = 210
+    Y_start = 8
 
-    # ====================== ШАПКА ======================
+    # ================= ШАПКА =================
+    if os.path.exists(logo_1_path):
+        pdf.image(logo_1_path, x=M, y=Y_start, h=9)
 
-    # 1. QR-код
-    qr_size = 25
-    pdf.image(qr_rio, x=M, y=y_qr, w=qr_size, h=qr_size)
-    pdf.set_font("Arial", "", 6)
-    pdf.text(M + 1, y_qr + qr_size + 3, "QR-код не портить")
+    if os.path.exists(logo_2_path):
+        pdf.image(logo_2_path, x=M + 40, y=Y_start + 1, h=7)
 
-    # 2. Логотип
-    logo_w = 56
-    logo_x = W_PAGE - M - logo_w
-    if os.path.exists(logo_path):
-        pdf.image(logo_path, x=logo_x, y=y_qr, w=logo_w)
+    pdf.set_font("ArialCustom", "B", 10)
+    pdf.set_xy(110, Y_start)
+    pdf.cell(W - M - 110, 5, f"Бланк письма № {num}",
+             align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # 3. Текст по центру
-    pdf.set_font("Arial", "B", 9)
-    pdf.set_y(y_qr + 5)
-    pdf.set_x(M + qr_size)
+    pdf.set_font("ArialCustom", "", 8)
+    pdf.set_x(110)
+    pdf.cell(W - M - 110, 4, "ФКУ СИЗО-() УФСИН России по ()", align="R")
 
-    content_w = logo_x - (M + qr_size)
-    pdf.cell(content_w, 5, f"Инициативное письмо № {num}", align="C",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.set_font("Arial", "B", 8.5)
-    pdf.set_x(M + qr_size)
-    pdf.cell(content_w, 5, "Оплата получателем", align="C",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.set_font("Arial", "", 7.2)
-    pdf.set_x(M + qr_size)
-    pdf.cell(content_w, 4, "ФКУ СИЗО-{НОМЕР} УФСИН России по {...}", align="C",
-             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Линия под шапкой
-    y_line = y_qr + 30
+    Y_current = Y_start + 12
     pdf.set_line_width(0.3)
-    pdf.line(M, y_line, W_PAGE - M, y_line)
+    pdf.line(M, Y_current, W - M, Y_current)
 
-    # ====================== ОСНОВНОЙ БЛОК ======================
-    y_content = y_line + 6
+    # ================= QR + ФИО =================
+    qr_size = 25
+    pdf.image(qr_rio, x=M, y=Y_current + 4, w=qr_size, h=qr_size)
 
-    pdf.set_font("Arial", "B", 7.6)
-    pdf.set_xy(M, y_content)
+    pdf.set_font("ArialCustom", "", 6)
+    pdf.text(M + 1, Y_current + 4 + qr_size + 3, "QR-код не портить")
 
+    x_fields = M + 28
 
-    y_obraz = y_content + 18
-    pdf.set_xy(M, y_obraz)
+    # --- Отправитель ---
+    y_sender_line = Y_current + 8
+    pdf.set_line_width(0.2)
+    pdf.line(x_fields, y_sender_line, W - 45, y_sender_line)  # Линия ФИО
+    pdf.line(W - 40, y_sender_line, W - M, y_sender_line)  # Линия Даты
 
+    pdf.set_font("ArialCustom", "B", 7)
+    pdf.set_xy(x_fields, y_sender_line)
+    pdf.cell(W - 45 - x_fields, 4, "Отправитель (ФИО)", align="C")
+    pdf.set_xy(W - 40, y_sender_line)
+    pdf.cell(30, 4, "Дата Рождения", align="C")
 
-    x_fio = M
-    pdf.set_font("Arial", "B", 7.8)
-    pdf.set_xy(x_fio, y_content - 2)
-    pdf.cell(0, 0, "ОТПРАВИТЕЛЬ (ФИО)")
+    # --- Получатель ---
+    y_rec_line = y_sender_line + 10
+    pdf.line(x_fields, y_rec_line, W - M, y_rec_line)
 
-    pdf.set_xy(W_PAGE - M - 25, y_content - 2)
-    pdf.cell(25, 0, "ГОД РОЖДЕНИЯ", align="R")
+    pdf.set_xy(x_fields, y_rec_line)
+    pdf.cell(W - 45 - x_fields, 4, "Получатель (ФИО)", align="C")
 
-    pdf.line(x_fio, y_content + 8, W_PAGE - M - 30, y_content + 8)
-    pdf.line(W_PAGE - M - 25, y_content + 8, W_PAGE - M, y_content + 8)
+    # ================= ТЕЛЕФОН =================
+    # Смещаем блок телефона ниже, чтобы не накладывался на подпись "Получатель"
+    y_phone_block = y_rec_line + 10
 
-    y_fio_rec = y_content + 14
-    pdf.set_xy(x_fio, y_fio_rec - 2)
-    pdf.cell(0, 0, "ПОЛУЧАТЕЛЬ (ФИО)")
-    pdf.line(x_fio, y_fio_rec + 8, W_PAGE - M, y_fio_rec + 8)
+    pdf.set_font("ArialCustom", "B", 5)
+    pdf.set_xy(x_fields, y_phone_block)
+    pdf.cell(80, -12, "МОБИЛЬНЫЙ НОМЕР ТЕЛЕФОНА ПОЛУЧАТЕЛЯ")
 
-    pdf.set_font("Arial", "", 6)
-    pdf.set_xy(M, y_fio_rec + 13)
-    pdf.cell(0, 0, "Информация . . . . . . Пишите разборчиво печатными буквами.")
+    # Трафарет
+    if os.path.exists(stencil_path):
+        pdf.image(stencil_path, x=x_fields, y=y_phone_block - 4, w=80, h=14)
 
-    # Финальная черта, после которой начинается пустое место для письма
-    y_content_start = pdf.get_y() + 4
-    pdf.set_draw_color(200, 200, 200)  # Светло-серая линия
-    pdf.line(M, y_content_start, W_PAGE - M, y_content_start)
+    # Образец
+    x_obr = W - M - 70
+    pdf.set_xy(x_obr, y_phone_block)
+    pdf.cell(40, -12, "ОБРАЗЕЦ НАПИСАНИЯ ЦИФР МОБИЛЬНОГО ТЕЛЕФОНА", align="L")
 
-    # ====================== ФУТЕР ======================
+    if os.path.exists(obraz_path):
+        pdf.image(obraz_path, x=x_obr, y=y_phone_block - 4, h=14)
+
+    # Подпись под трафаретом
+    pdf.set_font("ArialCustom", "", 6)
+    pdf.set_xy(M, y_phone_block + 10)
+    pdf.cell(0, 4, "Мобильный номер заполняйте на каждом бланке. Пишите разборчиво.")
+
+    # ================= РАЗДЕЛИТЕЛЬНАЯ ЛИНИЯ =================
+    Y_WRITE_START = y_phone_block + 15
+    pdf.set_line_width(0.3)
+    pdf.line(M, Y_WRITE_START, W - M, Y_WRITE_START)
+
+    # ================= ЛИНЕЙКА ДЛЯ ПИСЬМА =================
+    pdf.set_draw_color(170, 170, 170)
+    pdf.set_line_width(0.1)
+
+    y_line = Y_WRITE_START + 7
+    step = 6
+
+    while y_line < 285:
+        pdf.line(M, y_line, W - M, y_line)
+        y_line += step
+
+    # ================= ФУТЕР =================
     pdf.set_y(-12)
-    pdf.set_font("Arial", "B", 6.2)
-    pdf.cell(100, 0, "Информация . . .")
+    pdf.set_font("ArialCustom", "B", 6)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(100, 5, "Не забудьте указать номер телефона", align="L")
 
-    pdf.set_font("Arial", "", 5.4)
-    pdf.cell(0, 0, "Заполняя бланк, пользователь подтверждает согласие с условиями оферты", align="R")
+    pdf.set_font("ArialCustom", "", 6)
+    pdf.cell(0, 5, "Заполняя бланк пользователь подтверждает согласие с условиями оферты", align="R")
 
-    # --- Сохранение ---
-    output_path = f"init_{num}.pdf"
+    output_path = f"blank_{num}.pdf"
     pdf.output(output_path)
-    print(f"Готово! Файл {output_path} создан.")
+    print(f"Готово: {output_path}")
 
 
 if __name__ == "__main__":
-    create_blank_fpdf(counter=1, secret="secret")
+    create_blank(counter=1, secret="secret")

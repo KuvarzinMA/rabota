@@ -10,7 +10,7 @@ def generate_md5_checksum(txt: str, secret: str) -> str:
     return hashlib.md5((txt + secret).encode('utf-8')).hexdigest()
 
 
-def create_blank(counter: int, secret: str,
+def create_blank(counter: int, secret: str, prison: str,
                                logo_1_path="logo_1.png",
                                logo_2_path="logo_2.png",):
     num = f"{counter:09d}"
@@ -55,7 +55,7 @@ def create_blank(counter: int, secret: str,
 
     pdf.set_font("ArialCustom", "", 8)
     pdf.set_x(110)
-    pdf.cell(W - M - 110, 4, "ФКУ СИЗО-() УФСИН России по ()", align="R")
+    pdf.cell(W - M - 110, 4, prison, align="R")
 
     Y_current = Y_start + 12
     pdf.set_line_width(0.3)
@@ -123,4 +123,4 @@ def create_blank(counter: int, secret: str,
 
 
 if __name__ == "__main__":
-    create_blank(counter=1, secret="secret")
+    create_blank(counter=1, secret="secret", prison="СИЗО-100 УФСИН РОССИИ")

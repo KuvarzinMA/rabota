@@ -1,4 +1,3 @@
-import logging
 import logging.config
 import select
 import time

@@ -63,7 +63,7 @@ text_for_qr = f"{txt}-{checksum}"
 # Генерация PDF с QR-кодом в правом верхнем углу
 generate_qr_pdf(
     text=text_for_qr,
-    output_pdf="1.pdf",
+    output_pdf="2.pdf",
     pos_x=0,  # левый верхний угол
     pos_y=0,
     qr_width=100,

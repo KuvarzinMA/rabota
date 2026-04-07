@@ -52,7 +52,7 @@ def create_blank(counter: int, secret: str,
 
     pdf.set_font("ArialCustom", "B", 10)
     pdf.set_xy(110, Y_start)
-    pdf.cell(W - M - 110, 5, f"Бланк письма № {num}",
+    pdf.cell(W - M - 110, 5, f"Инициативное письмо № {num}",
              align="R", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     pdf.set_font("ArialCustom", "", 8)

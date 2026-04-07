@@ -101,7 +101,7 @@ def create_blank(counter: int, secret: str,
 
     # Трафарет
     if os.path.exists(stencil_path):
-        pdf.image(stencil_path, x=x_fields, y=y_phone_block - 4, w=80, h=14)
+        pdf.image(stencil_path, x=x_fields, y=y_phone_block - 4, w=90, h=16)
 
     # Образец
     x_obr = W - M - 70
@@ -109,15 +109,15 @@ def create_blank(counter: int, secret: str,
     pdf.cell(40, -12, "ОБРАЗЕЦ НАПИСАНИЯ ЦИФР МОБИЛЬНОГО ТЕЛЕФОНА", align="L")
 
     if os.path.exists(obraz_path):
-        pdf.image(obraz_path, x=x_obr, y=y_phone_block - 4, h=14)
+        pdf.image(obraz_path, x=x_obr, y=y_phone_block - 4, h=9)
 
     # Подпись под трафаретом
     pdf.set_font("ArialCustom", "", 6)
-    pdf.set_xy(M, y_phone_block + 10)
+    pdf.set_xy(M + 121, y_phone_block + 7)
     pdf.cell(0, 4, "Мобильный номер заполняйте на каждом бланке. Пишите разборчиво.")
 
     # ================= РАЗДЕЛИТЕЛЬНАЯ ЛИНИЯ =================
-    Y_WRITE_START = y_phone_block + 15
+    Y_WRITE_START = y_phone_block + 13
     pdf.set_line_width(0.3)
     pdf.line(M, Y_WRITE_START, W - M, Y_WRITE_START)
 
@@ -139,7 +139,7 @@ def create_blank(counter: int, secret: str,
     pdf.cell(100, 5, "Не забудьте указать номер телефона", align="L")
 
     pdf.set_font("ArialCustom", "", 6)
-    pdf.cell(0, 5, "Заполняя бланк пользователь подтверждает согласие с условиями оферты", align="R")
+    pdf.cell(0, 5, "Заполняя данный бланк пользователь подтверждает, что ознакомлен с офертой", align="R")
 
     output_path = f"init_{num}.pdf"
     pdf.output(output_path)

@@ -4,7 +4,7 @@ import os
 from collections import Counter
 
 # ===================== НАСТРОЙКИ =====================
-input_file = 'Копия Реквизиты ИУ.xlsx'
+input_file = 'Учреждения ФСИН1.xlsx'
 output_big_file = 'fsin_institutions_full_FINAL6.xlsx'
 output_folder = 'regions_output'
 
@@ -433,6 +433,24 @@ def extract_zip(address: str) -> str:
     return m.group(1) if m else ''
 
 
+def remove_zip(address: str) -> str:
+    """Удаляет почтовый индекс (6 цифр) из адреса и очищает лишние пробелы/запятые."""
+    if not address or str(address).strip() in ('', 'nan'):
+        return ''
+
+    # Превращаем в строку на случай, если пришло что-то другое
+    address_str = str(address)
+
+    # 1. Заменяем 6 цифр (индекс) на пустую строку
+    # Шаблон \b\d{6}\b ищет ровно 6 цифр, стоящих отдельно
+    result = re.sub(r'\b\d{6}\b', '', address_str)
+
+    # 2. Очистка: убираем лишние пробелы и повторяющиеся запятые,
+    # которые могли остаться после удаления индекса
+    result = re.sub(r'\s{2,}', ' ', result)  # Двойные пробелы -> один
+    result = re.sub(r',\s*,', ',', result)  # Запятые подряд -> одна
+
+    return result.strip(', ')  # Убираем пробелы и запятые по краям
 # ===================== ОСНОВНАЯ ОБРАБОТКА =====================
 
 df = pd.read_excel(input_file, sheet_name="Реестр", header=0)
@@ -491,12 +509,12 @@ for _, row in df.iterrows():
     # --- 3. Парсим город и индекс ---
     address_city = extract_city(address)
     address_zip  = extract_zip(address)
+    address_remove_zip = remove_zip(address)
 
     # --- 4. Формируем запись ---
     full_name = f'Федеральное казенное учреждение "{name_raw}"'
 
     record = {
-        'region_id':        region_id,
         'fullName':         full_name,
         'name':             name_raw,
         'billingDescriptor': billing_descriptor,
@@ -507,7 +525,7 @@ for _, row in df.iterrows():
         'address_zip':      address_zip,
         'address_country':  'RUS',
         'address_city':     address_city,
-        'address_street':   address,
+        'address_street':   address_remove_zip,
         'email':            email,
         'ceo_firstName':    '',
         'ceo_lastName':     '',
@@ -518,6 +536,7 @@ for _, row in df.iterrows():
         'kbk':              '00000000000000000000',
         'oktmo':            oktmo,
         'ufk_pers_account': lsch,
+        'region_id': region_id,
     }
 
     result_data.append(record)

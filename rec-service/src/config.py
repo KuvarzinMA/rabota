@@ -1,7 +1,7 @@
 import configparser
 import os
 from typing import Union, Type
-from log_config import build_log_config
+from src.log_config import build_log_config
 
 config = configparser.ConfigParser()
 config_path = os.path.join(os.path.dirname(__file__), "settings.ini")
@@ -41,7 +41,6 @@ S3_CONFIG = {
     "aws_access_key_id":     _get("s3", "aws_access_key_id"),
     "aws_secret_access_key": _get("s3", "aws_secret_access_key"),
 }
-S3_BUCKET = _get("s3", "bucket_name")
 
 # --- Пути и секреты ---
 MODEL_PATH = _get("paths", "model_path")

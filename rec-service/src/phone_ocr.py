@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import fitz
 import os
-from config import MODEL_PATH
+from src.config import MODEL_PATH
 
 
 class PhoneOCR:

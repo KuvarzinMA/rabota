@@ -1,5 +1,5 @@
 import psycopg2
-from config import PROC_DONE, PROC_ERROR, TYPE_INIT
+from src.config import PROC_DONE, PROC_ERROR, TYPE_INIT, PROC_NEW
 
 
 # =========================================================
@@ -16,17 +16,21 @@ def update_proc_status(cur, record_id: int, status: int) -> None:
     except psycopg2.Error as e:
         raise RuntimeError(f"SQL Status Update Error: {e.pgcode}") from e
 
+def get_bucket_name(cur, record_id: int) -> str | None:
+    """Возвращает stor_url по ID записи, или None если не найдена."""
+    cur.execute("SELECT s3_bucket FROM proc_files WHERE id = %s", (record_id,))
+    row = cur.fetchone()
+    return row[0] if row else None
 
 def get_file_info(cur, record_id: int) -> str | None:
     """Возвращает stor_url по ID записи, или None если не найдена."""
-    cur.execute("SELECT stor_url FROM proc_files WHERE id = %s", (record_id,))
+    cur.execute("SELECT s3_key FROM proc_files WHERE id = %s", (record_id,))
     row = cur.fetchone()
     return row[0] if row else None
 
 
 def get_pending_tasks(cur) -> list[int]:
     """Возвращает ID записей, которые ещё не обработаны."""
-    from config import PROC_NEW
     cur.execute("SELECT id FROM proc_files WHERE processed = %s", (PROC_NEW,))
     return [row[0] for row in cur.fetchall()]
 

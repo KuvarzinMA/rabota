@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 from PIL import Image
 from pyzbar.pyzbar import decode
-from config import QR_SECRET
+from src.config import QR_SECRET
 
 
 def verify_md5(full_text, secret=QR_SECRET):

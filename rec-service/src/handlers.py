@@ -1,6 +1,6 @@
 import logging
 
-import queries
+import src.queries
 
 logger = logging.getLogger("worker.handlers")
 

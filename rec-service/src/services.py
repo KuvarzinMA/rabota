@@ -2,7 +2,6 @@ import logging
 import re
 import time
 
-from config import S3_BUCKET
 
 logger = logging.getLogger("worker.services")
 
@@ -63,11 +62,11 @@ class StorageService:
     def __init__(self, s3_client):
         self.s3 = s3_client
 
-    def download(self, key: str, retries: int = 3) -> bytes:
+    def download(self, bucket_name: str, key: str, retries: int = 3) -> bytes:
         """Скачивает файл из S3 с экспоненциальными повторами."""
         for attempt in range(retries):
             try:
-                obj = self.s3.get_object(Bucket=S3_BUCKET, Key=key)
+                obj = self.s3.get_object(Bucket=bucket_name, Key=key)
                 return obj["Body"].read()
             except Exception as e:
                 logger.warning(f"S3 попытка {attempt + 1}/{retries} для '{key}': {e}")

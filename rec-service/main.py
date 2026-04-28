@@ -9,12 +9,12 @@ import psycopg2
 import psycopg2.pool
 from psycopg2 import DatabaseError
 
-from config import DB_CONFIG, LOG_CONFIG, S3_CONFIG
-import queries
-import handlers
-from services import DocumentProcessor, StorageService
-from qr_service import scan_pdf_qr
-from phone_ocr import PhoneOCR
+from src.config import DB_CONFIG, LOG_CONFIG, S3_CONFIG
+import src.queries as queries
+import src.handlers as handlers
+from src.services import DocumentProcessor, StorageService
+from src.qr_service import scan_pdf_qr
+from src.phone_ocr import PhoneOCR
 
 # =========================================================
 # 1. ЛОГИРОВАНИЕ
@@ -86,9 +86,16 @@ def handle_notification(payload: str) -> None:
                 logger.warning(f"ID {record_id}: запись не найдена в БД.")
                 return
 
-            logger.info(f"==> Старт ID {record_id} ({stor_url})")
+            bucket_name = queries.get_bucket_name(cur, record_id)
 
-            pdf_bytes = storage.download(stor_url)
+            if not bucket_name:
+                logger.error(f"ID {record_id}: не удалось определить бакет S3.")
+                _try_save_error(record_id, stor_url, "S3 Bucket not found in DB")
+                return
+
+            logger.info(f"==> Старт ID {record_id} (Bucket: {bucket_name}, Path: {stor_url})")
+
+            pdf_bytes = storage.download(bucket_name, stor_url)
             doc       = processor.get_document_info(pdf_bytes)
             handlers.process_document(cur, record_id, stor_url, doc)
 

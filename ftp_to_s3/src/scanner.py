@@ -1,5 +1,11 @@
 """
-Обход дерева FTP_ROOT и сбор пар (region_dir, inst_dir).
+Обход дерева FTP_ROOT и сбор папок принтеров.
+
+Структура FTP:
+    FTP_ROOT/
+      <printer_id>/        ← папка принтера (имя = его ID)
+        scan001.pdf
+        scan002.tif
 """
 
 from pathlib import Path
@@ -7,27 +13,19 @@ from src.config import FTP_ROOT
 from src.logger import log
 
 
-def iter_institutions(ftp_root: Path = FTP_ROOT):
+def iter_printers(ftp_root: Path = FTP_ROOT):
     """
-    Генератор: yields (region: str, inst_dir: Path)
+    Генератор: yields printer_dir: Path
 
-    Ожидаемая структура:
-        FTP_ROOT/
-          <регион>/
-            <учреждение>/
-              scan1.pdf
-              scan2.tif
+    Каждая директория первого уровня считается отдельным принтером.
+    Имя папки используется как printer_id и как суффикс бакета S3.
     """
     if not ftp_root.exists():
         log.error(f"Корневая папка не найдена: {ftp_root.resolve()}")
         return
 
-    for region_dir in sorted(ftp_root.iterdir()):
-        if not region_dir.is_dir():
+    for printer_dir in sorted(ftp_root.iterdir()):
+        if not printer_dir.is_dir():
             continue
-        log.info(f"Регион: {region_dir.name}")
-
-        for inst_dir in sorted(region_dir.iterdir()):
-            if not inst_dir.is_dir():
-                continue
-            yield region_dir.name, inst_dir
+        log.info(f"🖨️  Принтер: {printer_dir.name}")
+        yield printer_dir

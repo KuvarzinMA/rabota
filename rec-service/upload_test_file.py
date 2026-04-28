@@ -49,7 +49,7 @@ def upload_and_notify(file_path: str):
 
 
 if __name__ == "__main__":
-    TEST_FILE = "../number-recognition/scan_20260406152358.pdf"
+    TEST_FILE = "blank_000000001.pdf"
 
     if os.path.exists(TEST_FILE):
         upload_and_notify(TEST_FILE)

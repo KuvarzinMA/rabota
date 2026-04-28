@@ -52,11 +52,11 @@ RCLONE_INCLUDE: list[str] = [
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
 
 DB_CONFIG: dict = {
-    "host":     os.getenv("DB_HOST",     "10.2.1.50"),
+    "host":     os.getenv("DB_HOST",     ""),
     "port":     int(os.getenv("DB_PORT", "5432")),
-    "dbname":   os.getenv("DB_NAME",     "rpismo"),
-    "user":     os.getenv("DB_USER",     "rpismo"),
-    "password": os.getenv("DB_PASSWORD", "22rpismo11"),
+    "dbname":   os.getenv("DB_NAME",     ""),
+    "user":     os.getenv("DB_USER",     ""),
+    "password": os.getenv("DB_PASSWORD", ""),
 }
 
 # Канал NOTIFY — воркер слушает именно его

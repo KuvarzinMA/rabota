@@ -1,15 +1,3 @@
-"""
-Планировщик: запускает основной цикл переноса каждые SCHEDULER_INTERVAL_SEC секунд.
-
-Используем простой loop + time.sleep вместо cron или APScheduler —
-это даёт полный контроль над перекрытием запусков:
-если предыдущий прогон ещё не завершился, новый не стартует.
-
-Запуск:
-    python -m src.scheduler          # напрямую
-    python main.py --daemon          # через main.py
-"""
-
 import signal
 import time
 
@@ -20,19 +8,12 @@ _stop = False
 
 
 def _handle_signal(sig, _frame):
-    """Перехватывает SIGTERM / SIGINT для чистой остановки."""
     global _stop
     log.info(f"Получен сигнал {signal.Signals(sig).name}, завершаем после текущего прогона…")
     _stop = True
 
 
 def run_loop(job_fn) -> None:
-    """
-    Бесконечный цикл: запускает job_fn(), затем спит SCHEDULER_INTERVAL_SEC.
-    Корректно завершается по SIGTERM / Ctrl-C.
-
-    job_fn — callable без аргументов (обычно main.run)
-    """
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT,  _handle_signal)
 
@@ -69,7 +50,6 @@ def run_loop(job_fn) -> None:
 
 
 def _interruptible_sleep(seconds: float, chunk: float = 1.0) -> None:
-    """sleep(seconds) с проверкой флага остановки каждые chunk секунд."""
     remaining = seconds
     while remaining > 0 and not _stop:
         time.sleep(min(chunk, remaining))

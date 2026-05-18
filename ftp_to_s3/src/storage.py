@@ -38,7 +38,7 @@ def ensure_bucket(printer_id: str) -> bool:
         _bucket_cache.add(bname)
         return True
 
-    log.info(f"  🪣 Создаю бакет: {bname} (регион: {AWS_REGION})")
+    log.info(f"   Создаю бакет: {bname} (регион: {AWS_REGION})")
     result = subprocess.run(
         [
             "rclone", "mkdir",
@@ -49,9 +49,9 @@ def ensure_bucket(printer_id: str) -> bool:
     )
 
     if result.returncode == 0:
-        log.info(f"  ✅ Бакет создан: {bname}")
+        log.info(f"   Бакет создан: {bname}")
         _bucket_cache.add(bname)
         return True
 
-    log.error(f"  ❌ Не удалось создать бакет {bname}: {result.stderr.strip()}")
+    log.error(f"   Не удалось создать бакет {bname}: {result.stderr.strip()}")
     return False

@@ -1,45 +1,63 @@
+import configparser
 import os
+from typing import Union, Type
 from pathlib import Path
+
+config = configparser.ConfigParser()
+config_path = os.path.join(os.path.dirname(__file__), "settings.ini")
+
+if not config.read(config_path, encoding="utf-8"):
+    raise FileNotFoundError(f"Конфигурационный файл не найден: {config_path}")
+
+
+def _get(section: str, key: str, data_type: Type = str) -> Union[str, int, bool]:
+    """
+    Универсальный забор данных из конфига с приведением типов и обработкой ошибок.
+    """
+    try:
+        if data_type is int:
+            return config.getint(section, key)
+        if data_type is bool:
+            return config.getboolean(section, key)
+        return config.get(section, key)
+
+    except (configparser.NoSectionError, configparser.NoOptionError):
+        raise RuntimeError(f"Ошибка: В settings.ini отсутствует [{section}] -> {key}")
+    except ValueError:
+        raise RuntimeError(f"Ошибка типа: Параметр [{section}] -> {key} должен быть {data_type.__name__}")
 
 
 # ── Источник ──────────────────────────────────────────────────────────────────
 
-FTP_ROOT = Path(os.getenv("FTP_ROOT", "C:/FTPStore"))
+FTP_ROOT = Path(_get("Source", "ftp_root", str))
+MIN_FILE_AGE = _get("Source", "min_file_age", str)
 
-# Минимальный возраст файла перед переносом (rclone --min-age)
-# Формат rclone: 10m, 1h, 2d …
-MIN_FILE_AGE = os.getenv("MIN_FILE_AGE", "10s")
-
-# Расширения, которые считаются сканами
-SCAN_EXTENSIONS = {".pdf", ".tiff", ".tif", ".jpg", ".jpeg", ".png"}
+# Парсим расширения из строки (удаляем пробелы и собираем в set)
+_raw_extensions = _get("Source", "scan_extensions", str)
+SCAN_EXTENSIONS = {ext.strip() for ext in _raw_extensions.split(",") if ext.strip()}
 
 # ── S3 / rclone ───────────────────────────────────────────────────────────────
 
-# Имя remote из `rclone config`
-S3_REMOTE = os.getenv("S3_REMOTE", "test")
-
-# Префикс имени бакета — итого: mfu-printer-<printer_id>
-S3_BUCKET_PREFIX = os.getenv("S3_BUCKET_PREFIX", "mfu-printer-")
-
-# AWS-регион (нужен при создании бакетов)
-AWS_REGION = os.getenv("AWS_REGION", "eu-central-1")
+S3_REMOTE = _get("S3", "s3_remote", str)
+S3_BUCKET_PREFIX = _get("S3", "s3_bucket_prefix", str)
+AWS_REGION = _get("S3", "aws_region", str)
 
 # ── Параметры rclone ──────────────────────────────────────────────────────────
 
 RCLONE_FLAGS: list[str] = [
-    "--transfers",         os.getenv("RCLONE_TRANSFERS", "4"),
-    "--checkers",          os.getenv("RCLONE_CHECKERS",  "8"),
+    "--transfers",         str(_get("Rclone", "transfers", int)),
+    "--checkers",          str(_get("Rclone", "checkers", int)),
     "--retries",           "3",
     "--low-level-retries", "10",
     "--stats",             "30s",
     "--log-level",         "INFO",
-    "--inplace",           # Писать сразу в целевой ключ, без tmp-мусора
-    # Бакет проверяется/создаётся в storage.py — не тратим HEAD на каждый вызов
+    "--inplace",
     "--s3-no-check-bucket",
 ]
 
-# Раскомментировать для тестового прогона без реальной записи
-# RCLONE_FLAGS += ["--dry-run"]
+# Добавляем --dry-run, если флаг включен в конфиге
+if _get("Rclone", "dry_run", bool):
+    RCLONE_FLAGS.append("--dry-run")
 
 # ── Включения файлов для rclone ───────────────────────────────────────────────
 
@@ -52,20 +70,16 @@ RCLONE_INCLUDE: list[str] = [
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
 
 DB_CONFIG: dict = {
-    "host":     os.getenv("DB_HOST",     "10.2.1.50"),
-    "port":     int(os.getenv("DB_PORT", "5432")),
-    "dbname":   os.getenv("DB_NAME",     "rpismo"),
-    "user":     os.getenv("DB_USER",     "rpismo"),
-    "password": os.getenv("DB_PASSWORD", "22rpismo11"),
+    "host":     _get("Database", "host", str),
+    "port":     _get("Database", "port", int),
+    "dbname":   _get("Database", "dbname", str),
+    "user":     _get("Database", "user", str),
+    "password": _get("Database", "password", str),
 }
 
-# Канал NOTIFY — воркер слушает именно его
-DB_NOTIFY_CHANNEL = os.getenv("DB_NOTIFY_CHANNEL", "new_scan")
-
-# Статус «только поступил, ещё не обработан»
+DB_NOTIFY_CHANNEL = _get("Database", "notify_channel", str)
 PROC_NEW = 0
 
 # ── Планировщик ───────────────────────────────────────────────────────────────
 
-# Интервал между запусками в секундах (300 = 5 мин, 600 = 10 мин)
-SCHEDULER_INTERVAL_SEC = int(os.getenv("SCHEDULER_INTERVAL", "300"))
+SCHEDULER_INTERVAL_SEC = _get("Scheduler", "interval_sec", int)

@@ -1,8 +1,3 @@
-"""
-Перенос файлов одного принтера в его S3-бакет через rclone move.
-Возвращает список перенесённых S3-ключей для регистрации в БД.
-"""
-
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -25,11 +20,6 @@ class TransferResult:
 def _parse_moved_keys(output: str) -> list[str]:
     """
     Извлекает имена перенесённых файлов из вывода rclone.
-
-    rclone move --log-level INFO пишет строки вида:
-        INFO  : scan001.pdf: Moved to s3:mfu-printer-42/scan001.pdf
-    или (старые версии rclone):
-        INFO  : scan001.pdf: Copied (new)
     """
     keys: list[str] = []
 
@@ -50,13 +40,6 @@ def _parse_moved_keys(output: str) -> list[str]:
 def move_printer(printer_dir: Path) -> TransferResult:
     """
     Переносит все готовые сканы принтера в его персональный бакет S3.
-
-    Почему move:
-        Файл удаляется с FTP только после подтверждения записи на стороне S3.
-
-    Почему --min-age:
-        rclone сам пропускает файлы моложе MIN_FILE_AGE — никакой ручной
-        проверки mtime не нужно.
     """
     printer_id = printer_dir.name
     bname      = bucket_name(printer_id)
@@ -82,7 +65,7 @@ def move_printer(printer_dir: Path) -> TransferResult:
         *RCLONE_FLAGS,
     ]
 
-    log.info(f"  ▶️  {printer_dir} → s3://{bname}/")
+    log.info(f"  ▶  {printer_dir} → s3://{bname}/")
     log.debug(f"  CMD: {' '.join(cmd)}")
 
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -102,9 +85,9 @@ def move_printer(printer_dir: Path) -> TransferResult:
         result.success    = True
         result.moved_keys = _parse_moved_keys(combined)
         log.info(
-            f"  ✅ {printer_id}: перенесено файлов: {len(result.moved_keys)}"
+            f"   {printer_id}: перенесено файлов: {len(result.moved_keys)}"
         )
     else:
-        log.error(f"  ❌ rclone завершился с кодом {proc.returncode}: {printer_id}")
+        log.error(f"   rclone завершился с кодом {proc.returncode}: {printer_id}")
 
     return result

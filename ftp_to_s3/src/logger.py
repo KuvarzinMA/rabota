@@ -1,5 +1,3 @@
-"""Настройка логирования."""
-
 import logging
 from pathlib import Path
 

@@ -1,11 +1,3 @@
-"""
-Точка входа.
-
-Режимы запуска:
-    python main.py              — один прогон
-    python main.py --daemon     — бесконечный цикл каждые SCHEDULER_INTERVAL сек
-"""
-
 import subprocess
 import sys
 
@@ -35,7 +27,7 @@ def print_summary(results: list[TransferResult]) -> None:
     total_files = sum(len(r.moved_keys) for r in results)
 
     log.info("=" * 60)
-    log.info("📊 Итог:")
+    log.info("   Итог:")
     log.info(f"   Принтеров обработано  : {len(results)}")
     log.info(f"   Успешно               : {ok}")
     log.info(f"   С ошибками            : {failed}")
